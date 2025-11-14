@@ -4,8 +4,7 @@ A multifunctional Discord bot built with [discord.js v14](https://discord.js.org
 - 🔒 Moderation tools (kick, ban, timeout, warn, clear, lockdown)
 - 🛠 Utility commands (ping, help, serverinfo, say)
 - 🎫 Ticket system (setup panel stub)
-- 🔗 URL bypass command using [bypass.vip](https://bypass.vip)
-
+- 🔗 U̶R̶L̶ ̶b̶y̶p̶a̶s̶s̶ ̶c̶o̶m̶m̶a̶n̶d̶ ̶u̶s̶i̶n̶g̶ ̶[̶b̶y̶p̶a̶s̶s̶.̶v̶i̶p̶]̶(̶h̶t̶t̶p̶s̶:̶/̶/̶b̶y̶p̶a̶s̶s̶.̶v̶i̶p̶) not working.
 ---
 
 ## ✨ Features
