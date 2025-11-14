@@ -120,8 +120,8 @@ client.once("ready", async () => {
   await registerCommands();
 
   const statuses = [
-    { name: "/help - @m.lecs", type: ActivityType.Playing },
-    { name: "for spam and raids", type: ActivityType.Watching },
+    { name: "Made by Lecs @ Vecs Corp.", type: ActivityType.Playing },
+    { name: "For spam and raids", type: ActivityType.Watching },
     { name: "/help for commands", type: ActivityType.Listening },
   ];
 
