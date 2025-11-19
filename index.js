@@ -109,9 +109,6 @@ const commands = [
       .addChannelOption(o => o.setName("category").setDescription("Ticket category").setRequired(true).addChannelTypes(ChannelType.GuildCategory))
     ),
 
-  new SlashCommandBuilder().setName("bypass").setDescription("Bypass a short URL")
-    .addStringOption(o => o.setName("url").setDescription("URL").setRequired(true)),
-
   new SlashCommandBuilder().setName("verify").setDescription("Verification system")
     .addSubcommand(sub => sub.setName("setup").setDescription("Post verification panel")
       .addChannelOption(o => o.setName("channel").setDescription("Panel channel").setRequired(true).addChannelTypes(ChannelType.GuildText))
@@ -173,7 +170,7 @@ client.on("interactionCreate", async i => {
               .setTitle("📖 Commands")
               .addFields(
                 { name: "Moderation", value: "`kick`, `ban`, `timeout`, `warn`, `warnings`, `clear`, `lockdown`" },
-                { name: "Utility", value: "`ping`, `help`, `serverinfo`, `say`, `bypass`" },
+                { name: "Utility", value: "`ping`, `help`, `serverinfo`, `say`" },
                 { name: "Tickets", value: "`ticket setup`" }
               )
               .setColor("#00bfff")
@@ -318,36 +315,6 @@ client.on("interactionCreate", async i => {
 
         await target.send({ embeds: [embed] });
         return i.reply({ content: "✅ Embed sent!", ephemeral: true });
-      }
-
-      // /bypass
-      if (cmd === "bypass") {
-        const url = i.options.getString("url");
-
-        try {
-          const res = await fetch(
-            `https://api.bypass.vip/bypass?url=${encodeURIComponent(url)}`
-          );
-          const data = await res.json();
-
-          if (data?.destination) {
-            return i.reply({
-              embeds: [
-                new EmbedBuilder()
-                  .setTitle("🔗 Bypassed URL")
-                  .addFields(
-                    { name: "Original", value: url },
-                    { name: "Bypassed", value: data.destination }
-                  )
-                  .setColor("#00ffcc")
-              ]
-            });
-          } else {
-            return i.reply({ content: "❌ Could not bypass URL", ephemeral: true });
-          }
-        } catch {
-          return i.reply({ content: "❌ API error", ephemeral: true });
-        }
       }
 
       // /ticket setup
