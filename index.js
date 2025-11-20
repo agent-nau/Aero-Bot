@@ -94,16 +94,18 @@ const commands = [
   new SlashCommandBuilder().setName("ping").setDescription("Ping"),
 
   new SlashCommandBuilder().setName("say").setDescription("Say something as bot")
-    .addStringOption(o => o.setName("format").setDescription("plain/embed").setRequired(true).addChoices(
-      { name: "Plain Text", value: "plain" }, { name: "Embed", value: "embed" }
-    ))
     .addStringOption(o => o.setName("message").setDescription("Message").setRequired(true))
     .addChannelOption(o => o.setName("channel").setDescription("Target channel").addChannelTypes(ChannelType.GuildText))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  new SlashCommandBuilder().setName("embed").setDescription("Send an embed as the bot")
+    .addStringOption(o => o.setName("description").setDescription("Embed description").setRequired(true))
     .addStringOption(o => o.setName("title").setDescription("Embed title"))
     .addStringOption(o => o.setName("color").setDescription("Embed color"))
     .addStringOption(o => o.setName("footer").setDescription("Embed footer"))
     .addStringOption(o => o.setName("image").setDescription("Embed image URL"))
     .addStringOption(o => o.setName("thumbnail").setDescription("Embed thumbnail URL"))
+    .addChannelOption(o => o.setName("channel").setDescription("Target channel").addChannelTypes(ChannelType.GuildText))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   new SlashCommandBuilder().setName("ticket").setDescription("Ticket system")
@@ -294,36 +296,43 @@ client.on("interactionCreate", async i => {
         }
       }
 
-      // /say
+      // /say (plain text)
       if (cmd === "say") {
-        const format = i.options.getString("format");
         const msg = i.options.getString("message");
         const target = i.options.getChannel("channel") || i.channel;
 
-        if (format === "plain") {
-          await target.send(msg);
+        try {
+          await target.send({ content: msg });
           return i.reply({ content: "✅ Sent!", ephemeral: true });
+        } catch {
+          return i.reply({ content: "❌ Failed to send message", ephemeral: true });
         }
+      }
 
-        const embed = new EmbedBuilder().setDescription(msg);
+      // /embed (rich embed)
+      if (cmd === "embed") {
+        const description = i.options.getString("description");
         const title = i.options.getString("title");
         let color = i.options.getString("color");
         const footer = i.options.getString("footer");
         const image = i.options.getString("image");
         const thumb = i.options.getString("thumbnail");
+        const target = i.options.getChannel("channel") || i.channel;
 
-        if (color) {
-          color = colorMap[color.toLowerCase()] || color;
-        }
-
+        const embed = new EmbedBuilder().setDescription(description);
         if (title) embed.setTitle(title);
+        if (color) color = colorMap[color.toLowerCase()] || color;
         if (color) embed.setColor(color);
         if (footer) embed.setFooter({ text: footer });
         if (image) embed.setImage(image);
         if (thumb) embed.setThumbnail(thumb);
 
-        await target.send({ embeds: [embed] });
-        return i.reply({ content: "✅ Embed sent!", ephemeral: true });
+        try {
+          await target.send({ embeds: [embed] });
+          return i.reply({ content: "✅ Embed sent!", ephemeral: true });
+        } catch {
+          return i.reply({ content: "❌ Failed to send embed", ephemeral: true });
+        }
       }
 
       // /ticket setup
