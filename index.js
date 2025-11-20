@@ -15,7 +15,6 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import fetch from "node-fetch";
 import { startKeepAlive } from "./keep-alive.js";
 
 console.log("🛡️ Starting Security & Ticket Bot...");
@@ -37,18 +36,10 @@ const colorMap = {
   white: "#ffffff", gray: "#808080", cyan: "#00ffff", magenta: "#ff00ff",
 };
 
-// new: chatbot settings & conversation tracking
-const chatSettings = new Map(); // guildId -> { channelId, enabled }
-const convos = new Map(); // botMessageId -> { userId, channelId, history: [{role,content}] }
+const verifSettings = new Map();
+const verifCodes = new Map();
+const joinSettings = new Map();
 
-// verification maps (guild settings + per-user codes)
-const verifSettings = new Map(); // guildId -> { channelId, verifiedRoleId, unverifiedRoleId }
-const verifCodes = new Map(); // userId -> { code, expiresAt, guildId }
-
-// auto-assign on join settings
-const joinSettings = new Map(); // guildId -> { roleId, enabled }
-
-// simple code generator (no confusing characters)
 function generateCode(len = 6) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
   return Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
@@ -112,13 +103,6 @@ const commands = [
     .addChannelOption(o => o.setName("channel").setDescription("Target channel").addChannelTypes(ChannelType.GuildText))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
-  // new: chatbot control
-  new SlashCommandBuilder().setName("chatbot").setDescription("Configure Aero chatbot")
-    .addSubcommand(sub => sub.setName("set").setDescription("Enable chatbot in a channel")
-      .addChannelOption(o => o.setName("channel").setDescription("Channel to enable").setRequired(true).addChannelTypes(ChannelType.GuildText)))
-    .addSubcommand(sub => sub.setName("off").setDescription("Disable chatbot"))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
-
   new SlashCommandBuilder().setName("ticket").setDescription("Ticket system")
     .addSubcommand(sub => sub.setName("setup").setDescription("Post ticket panel")
       .addChannelOption(o => o.setName("channel").setDescription("Panel channel").setRequired(true).addChannelTypes(ChannelType.GuildText))
@@ -139,11 +123,14 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 ];
 
-// ---------- Command registration ----------
-async function registerCommands() {
+// ---------- Ready ----------
+client.once("ready", async () => {
+  console.log(`Logged in as ${client.user.tag}`);
+
   const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_BOT_TOKEN);
+  const body = commands.map(c => c.toJSON());
+
   try {
-    const body = commands.map(c => c.toJSON());
     if (process.env.GUILD_ID) {
       await rest.put(Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID), { body });
       console.log("✅ Commands registered in guild");
@@ -154,12 +141,6 @@ async function registerCommands() {
   } catch (e) {
     console.error("❌ Command registration error:", e);
   }
-}
-
-// ---------- Ready ----------
-client.once("clientReady", async () => {
-  console.log(`Logged in as ${client.user.tag}`);
-  await registerCommands();
 
   const statuses = [
     { name: "Made by Lecs @ Vecs Corp.", type: ActivityType.Playing },
