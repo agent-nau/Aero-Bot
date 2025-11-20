@@ -162,22 +162,56 @@ client.on("interactionCreate", async i => {
       if (cmd === "ping") return await i.reply(`🏓 Pong! ${client.ws.ping}ms`);
 
       // /help
-      if (cmd === "help") {
-        return await i.reply({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("📖 Commands")
-              .addFields(
-                { name: "Moderation", value: "`kick`, `ban`, `timeout`, `warn`, `warnings`, `clear`, `lockdown`" },
-                { name: "Utility", value: "`ping`, `help`, `serverinfo`, `say`" },
-                { name: "Tickets", value: "`ticket setup`" }
-              )
-              .setColor("#00bfff")
-          ],
-          flags: 64
-        });
-      }
-
+      f (cmd === "help") {
+  return await i.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("📖 Bot Commands")
+        .setDescription("Here’s a list of available commands grouped by category:")
+        .addFields(
+          {
+            name: "🛡️ Moderation",
+            value: [
+              "`/kick` — Kick a member",
+              "`/ban` — Ban a member",
+              "`/timeout` — Timeout a member",
+              "`/warn` — Warn a member",
+              "`/warnings` — View warnings",
+              "`/clear` — Bulk delete messages",
+              "`/lockdown` — Lock or unlock a channel"
+            ].join("\n")
+          },
+          {
+            name: "🔧 Utility",
+            value: [
+              "`/ping` — Check bot latency",
+              "`/serverinfo` — Server details",
+              "`/say` — Send a message as the bot",
+              "`/embed` — Send a rich embed"
+            ].join("\n")
+          },
+          {
+            name: "🎫 Tickets",
+            value: "`/ticket setup` — Post a ticket panel"
+          },
+          {
+            name: "🔒 Verification",
+            value: "`/verify setup` — Post a verification panel"
+          },
+          {
+            name: "🎉 Auto-Assign",
+            value: [
+              "`/autojoin setup` — Enable auto-role on join",
+              "`/autojoin off` — Disable auto-role"
+            ].join("\n")
+          }
+        )
+        .setFooter({ text: "Use / followed by the command name to activate." })
+        .setColor("#00bfff")
+    ],
+    ephemeral: true
+  });
+}
       // /serverinfo
       if (cmd === "serverinfo") {
         return await i.reply({
