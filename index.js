@@ -37,6 +37,10 @@ const colorMap = {
   white: "#ffffff", gray: "#808080", cyan: "#00ffff", magenta: "#ff00ff",
 };
 
+// new: chatbot settings & conversation tracking
+const chatSettings = new Map(); // guildId -> { channelId, enabled }
+const convos = new Map(); // botMessageId -> { userId, channelId, history: [{role,content}] }
+
 // verification maps (guild settings + per-user codes)
 const verifSettings = new Map(); // guildId -> { channelId, verifiedRoleId, unverifiedRoleId }
 const verifCodes = new Map(); // userId -> { code, expiresAt, guildId }
@@ -107,6 +111,13 @@ const commands = [
     .addStringOption(o => o.setName("thumbnail").setDescription("Embed thumbnail URL"))
     .addChannelOption(o => o.setName("channel").setDescription("Target channel").addChannelTypes(ChannelType.GuildText))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  // new: chatbot control
+  new SlashCommandBuilder().setName("chatbot").setDescription("Configure Aero chatbot")
+    .addSubcommand(sub => sub.setName("set").setDescription("Enable chatbot in a channel")
+      .addChannelOption(o => o.setName("channel").setDescription("Channel to enable").setRequired(true).addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand(sub => sub.setName("off").setDescription("Disable chatbot"))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 
   new SlashCommandBuilder().setName("ticket").setDescription("Ticket system")
     .addSubcommand(sub => sub.setName("setup").setDescription("Post ticket panel")
@@ -385,6 +396,18 @@ client.on("interactionCreate", async i => {
         }
       }
 
+      // /chatbot
+      if (cmd === "chatbot") {
+        if (i.options.getSubcommand() === "set") {
+          const channel = i.options.getChannel("channel");
+          chatSettings.set(i.guild.id, { channelId: channel.id, enabled: true });
+          return i.reply({ content: `🤖 Chatbot enabled in ${channel}. Users can mention me there and reply to my message to continue the conversation.`, ephemeral: true });
+        } else { // off
+          chatSettings.delete(i.guild.id);
+          return i.reply({ content: "🤖 Chatbot disabled for this server.", ephemeral: true });
+        }
+      }
+
     }
 
     // Handle button interactions for starting verification + opening modal
@@ -513,6 +536,110 @@ client.on("guildMemberAdd", async member => {
     console.log(`Auto-assigned role ${role.name} to ${member.user.tag}`);
   } catch (err) {
     console.error("Auto-assign error:", err);
+  }
+});
+
+// Simple helper: generate reply via OpenAI if API key available, otherwise fallback
+async function generateReply(userMessage, history = []) {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) {
+    // fallback: short echo + hint
+    return `You said: ${userMessage}\n(Enable OPENAI_API_KEY to get smarter replies.)`;
+  }
+
+  try {
+    const messages = [
+      { role: "system", content: "You are Aero, a concise helpful chatbot. Keep replies short." },
+      ...history,
+      { role: "user", content: userMessage },
+    ];
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages,
+        max_tokens: 300,
+        temperature: 0.7,
+      })
+    });
+
+    if (!res.ok) {
+      console.error("OpenAI error status:", res.status, await res.text());
+      return `Sorry, I couldn't generate a reply.`;
+    }
+
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content?.trim();
+    return text || `Sorry, I couldn't generate a reply.`;
+  } catch (err) {
+    console.error("OpenAI fetch error:", err);
+    return `Sorry, an error occurred while generating a reply.`;
+  }
+}
+
+// Message handler for mentions and reply-to-bot continuation
+client.on("messageCreate", async message => {
+  try {
+    if (message.author.bot) return;
+    if (!message.guild) return;
+
+    const settings = chatSettings.get(message.guild.id);
+    if (!settings || !settings.enabled) return; // chatbot disabled for guild
+
+    // only operate in the configured channel
+    if (settings.channelId && message.channel.id !== settings.channelId) {
+      // allow direct mention in any channel? the user asked "add @aero if mention the bot it will like a chatbot"
+      // but requirement also requested command to set channel that chatbot only works; we enforce channel.
+      return;
+    }
+
+    // If message mentions the bot -> start a conversation thread: bot replies and instructs to reply to continue
+    if (message.mentions.has(client.user)) {
+      // prepare initial context
+      const prompt = message.content.replace(/<@!?(\d+)>/g, "").trim() || "Hello!";
+      const initialHistory = [{ role: "user", content: prompt }];
+
+      // send initial reply
+      const initialText = await generateReply(prompt, initialHistory);
+      const reply = await message.reply({ content: initialText });
+
+      // store conversation keyed by bot reply id so user can reply to it to continue
+      convos.set(reply.id, { userId: message.author.id, channelId: message.channel.id, history: initialHistory.concat([{ role: "assistant", content: initialText }]) });
+
+      return;
+    }
+
+    // If the user replied to a bot message that started a convo -> continue
+    const ref = message.reference?.messageId;
+    if (ref && convos.has(ref)) {
+      const convo = convos.get(ref);
+      // ensure same user and same channel
+      if (convo.userId !== message.author.id || convo.channelId !== message.channel.id) return;
+
+      // append user message to history and generate reply
+      convo.history.push({ role: "user", content: message.content });
+      // indicate typing
+      try { await message.channel.sendTyping(); } catch {}
+      const replyText = await generateReply(message.content, convo.history);
+      const sent = await message.reply({ content: replyText });
+
+      // append assistant reply to history and update convos key to new bot message so next reply to this bot message continues
+      convo.history.push({ role: "assistant", content: replyText });
+      convos.delete(ref);
+      convos.set(sent.id, convo);
+
+      // optionally limit stored history length to avoid runaway memory
+      if (convo.history.length > 20) convo.history.splice(0, convo.history.length - 20);
+
+      return;
+    }
+  } catch (err) {
+    console.error("Chatbot message handler error:", err);
   }
 });
 
