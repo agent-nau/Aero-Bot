@@ -162,7 +162,7 @@ client.on("interactionCreate", async i => {
       if (cmd === "ping") return await i.reply(`🏓 Pong! ${client.ws.ping}ms`);
 
       // /help
-      f (cmd === "help") {
+      if (cmd === "help") {
   return await i.reply({
     embeds: [
       new EmbedBuilder()
