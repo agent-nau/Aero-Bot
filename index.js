@@ -474,4 +474,3 @@ client.on("interactionCreate", async i => {
 
 // ---------- Login ----------
 client.login(process.env.DISCORD_BOT_TOKEN);
-someFunctionB();
