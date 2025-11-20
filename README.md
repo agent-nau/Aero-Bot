@@ -1,88 +1,64 @@
 # Security & Ticket Discord Bot
 
-A multifunctional Discord bot built with discord.js v14 that provides:
-- 🔒 Moderation tools (kick, ban, timeout, warn, warnings, clear, lockdown)
-- 🛠 Utility commands (ping, help, serverinfo, say)
-- 🎫 Ticket system (setup panel stub)
-- ✅ Verification system (panel + modal code flow)
+A multifunctional Discord bot built with discord.js v14 that provides moderation, utility, ticket, and verification features.
 
----
+This README was updated to clarify setup, running, and runtime behaviors (keep-alive server, in-memory verification codes, and auto-assign). See implementation in [index.js](index.js) and [keep-alive.js](keep-alive.js).
 
-## ✨ Features
+Highlights
+- Moderation: kick, ban, timeout, warn, warnings, clear, lockdown
+- Utility: ping, help, serverinfo, say
+- Ticket system: a setup stub
+- Verification: modal + short-code flow (in-memory) using [`generateCode`](index.js), stored in [`verifCodes`](index.js), with settings in [`verifSettings`](index.js)
+- Auto-assign on join: controlled by [`joinSettings`](index.js)
+- In-memory warnings: [`warnings`](index.js)
+- Keep-alive HTTP server: starts via [`startKeepAlive`](keep-alive.js)
 
-### Moderation
-- `/kick @user [reason]` – Kick a member  
-- `/ban @user [reason]` – Ban a member  
-- `/timeout @user <minutes> [reason]` – Timeout a member  
-- `/warn @user <reason>` – Warn a member  
-- `/warnings @user` – Show warnings for a user  
-- `/clear <amount>` – Bulk delete messages (1–100)  
-- `/lockdown <lock|unlock>` – Lock or unlock the current channel  
+Files
+- [index.js](index.js) — main bot logic (commands, interactions, verification, auto-assign)
+- [keep-alive.js](keep-alive.js) — tiny Express server to keep the process alive
+- [package.json](package.json) — scripts & deps
+- [LICENSE](LICENSE) — license text
 
-### Utility
-- `/ping` – Show bot latency  
-- `/help` – List commands  
-- `/serverinfo` – Show server info  
-- `/say` – Send plain text or embed messages  
-
-### Ticket System
-- `/ticket setup` – Post a ticket panel (stub)
-
-### Verification
-- `/verify setup` – Post verification panel (channel + verified/unverified role options)  
-- Verification uses a modal + short code flow and stores temporary codes in-memory.
-
----
-
-## Quickstart
+Quickstart
 
 Prerequisites
-- Node.js 18+ (recommended)
-- npm (comes with Node.js)
-- A Discord bot token and (optional) a test guild ID.
+- Node.js 18+
+- npm
+- Discord bot token (and optionally a test GUILD_ID for fast command registration)
 
 Setup
-1. Open a terminal in the project directory (VS Code Terminal recommended).
-2. Install dependencies:
-   - Windows: npm install
-3. Create a .env file (example contents):
+1. Install dependencies:
+   - npm install
+
+2. Create a .env file in the project root with:
    - DISCORD_BOT_TOKEN=your_bot_token
-   - GUILD_ID=your_test_guild_id   # optional — when set, commands register to this guild only
+   - GUILD_ID=your_test_guild_id   # optional — if present, commands register to that guild only
 
-Notes:
-- The bot registers slash commands on startup using DISCORD_BOT_TOKEN and the optional GUILD_ID. If GUILD_ID is present, commands are registered to that guild (fast); otherwise they're registered globally (may take ~1 hour to propagate).
-- CLIENT_ID is not required by the current index.js; the bot uses client.user.id when registering commands after login.
+Notes
+- Commands register on startup using the bot token and optional GUILD_ID (see command registration in [index.js](index.js)).
+- The bot starts a small HTTP server on port 3000 by calling [`startKeepAlive`](keep-alive.js). This can be used by uptime services or containers to verify liveness.
+- Verification codes are ephemeral and stored in memory via [`verifCodes`](index.js). Restarting the bot clears them. For persistence, add a DB or file storage and replace the in-memory maps ([`verifSettings`](index.js), [`verifCodes`](index.js), [`joinSettings`](index.js), [`warnings`](index.js)).
+- The code generator used for verification is [`generateCode`](index.js) (simple alphanumeric without confusing characters).
 
-Start the bot
-- npm start
-- or node .\index.js
+Running
+- Start the bot:
+  - npm start
+  - or node index.js
 
-If you have a separate deploy-commands.js, you may still run:
-- node .\deploy-commands.js --guild
-- node .\deploy-commands.js --global
+Troubleshooting
+- Slash commands not appearing?
+  - If using GUILD_ID, ensure the ID is correct and the bot is in that guild.
+  - Global commands may take up to an hour to propagate.
+- Permissions:
+  - Ensure the bot role has permissions such as Send Messages, Manage Channels, Manage Roles, Kick/Ban members, Manage Messages, Moderate Members depending on features used.
+- Verification/ticket:
+  - Verification uses a modal + short code flow. Codes expire after 5 minutes (see [`verifCodes`](index.js)).
+  - Auto-assign uses [`joinSettings`](index.js) to store role and enabled flag in-memory.
 
----
+Development notes
+- Main maps: [`verifSettings`](index.js), [`verifCodes`](index.js), [`joinSettings`](index.js), [`warnings`](index.js)
+- The keep-alive HTTP server is implemented in [keep-alive.js](keep-alive.js) and started from [index.js](index.js) via [`startKeepAlive`](keep-alive.js).
+- For command registration the runtime calls REST with token from DISCORD_BOT_TOKEN; if you need offline deployment, implement a separate deploy script or adapt the code in [index.js](index.js).
 
-## Troubleshooting
-
-Slash commands not appearing?
-- If using GUILD_ID, ensure it's correct and the bot is in that guild. Guild commands update immediately.
-- Global commands can take up to 1 hour to appear.
-- Check the terminal logs — index.js logs registration success/failure.
-
-Permissions
-- For moderation and some utilities, the bot needs permissions such as Send Messages, Manage Channels, Manage Roles, Kick/Ban members, Manage Messages, Moderate Members. Ensure the bot role has them.
-
-Verification/ticket issues
-- Verification codes are stored in-memory; a restart clears them. For persistent behavior, add a DB or file storage.
-- Ensure the channel/role IDs provided during setup are valid and the bot has Manage Roles / Send Messages in the target channel.
-
----
-
-## Contributing
-- Open an issue or PR with feature suggestions or bug fixes.
-
----
-
-## License
-MIT License
+License
+- See [LICENSE](LICENSE)

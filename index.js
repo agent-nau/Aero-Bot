@@ -41,6 +41,9 @@ const colorMap = {
 const verifSettings = new Map(); // guildId -> { channelId, verifiedRoleId, unverifiedRoleId }
 const verifCodes = new Map(); // userId -> { code, expiresAt, guildId }
 
+// auto-assign on join settings
+const joinSettings = new Map(); // guildId -> { roleId, enabled }
+
 // simple code generator (no confusing characters)
 function generateCode(len = 6) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -114,7 +117,13 @@ const commands = [
       .addChannelOption(o => o.setName("channel").setDescription("Panel channel").setRequired(true).addChannelTypes(ChannelType.GuildText))
       .addRoleOption(o => o.setName("verified_role").setDescription("Role to add on success").setRequired(true))
       .addRoleOption(o => o.setName("unverified_role").setDescription("Role to remove on success").setRequired(true))
-    )
+    ),
+
+  new SlashCommandBuilder().setName("autojoin").setDescription("Auto-assign a role when users join")
+    .addSubcommand(sub => sub.setName("setup").setDescription("Enable auto-assign and choose role")
+      .addRoleOption(o => o.setName("role").setDescription("Role to assign on join").setRequired(true)))
+    .addSubcommand(sub => sub.setName("off").setDescription("Disable auto-assign"))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 ];
 
 // ---------- Command registration ----------
@@ -355,6 +364,18 @@ client.on("interactionCreate", async i => {
         }
       }
 
+      // /autojoin
+      if (cmd === "autojoin") {
+        if (i.options.getSubcommand() === "setup") {
+          const role = i.options.getRole("role");
+          joinSettings.set(i.guild.id, { roleId: role.id, enabled: true });
+          return i.reply({ content: `✅ Auto-assign enabled. Users who join will receive the **${role.name}** role.`, ephemeral: true });
+        } else { // off
+          joinSettings.delete(i.guild.id);
+          return i.reply({ content: "✅ Auto-assign disabled for this server.", ephemeral: true });
+        }
+      }
+
     }
 
     // Handle button interactions for starting verification + opening modal
@@ -469,6 +490,20 @@ client.on("interactionCreate", async i => {
       return i.followUp({ content: "❌ Error occurred.", ephemeral: true });
     }
     return i.reply({ content: "❌ Error occurred.", ephemeral: true });
+  }
+});
+
+// ---------- Auto-assign role on join ----------
+client.on("guildMemberAdd", async member => {
+  try {
+    const s = joinSettings.get(member.guild.id);
+    if (!s || !s.enabled) return;
+    const role = member.guild.roles.cache.get(s.roleId);
+    if (!role) return console.warn(`Auto-assign role not found in guild ${member.guild.id}`);
+    await member.roles.add(role);
+    console.log(`Auto-assigned role ${role.name} to ${member.user.tag}`);
+  } catch (err) {
+    console.error("Auto-assign error:", err);
   }
 });
 
