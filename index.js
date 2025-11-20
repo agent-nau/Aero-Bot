@@ -341,11 +341,23 @@ client.on("interactionCreate", async i => {
             unverifiedRoleId: unverifiedRole.id,
           });
 
+<<<<<<< HEAD
           const embed = new EmbedBuilder();
           embed.setTitle("🔒 Verification");
           embed.setDescription("Press the button to begin verification. You will get a short code to enter (e.g., L3q9xd). If the code matches, you will get the verified role and the unverified role will be removed.");
           embed.setColor("#00ff66");
   
+=======
+          const embed = new EmbedBuilder()
+            .setTitle("🔒 Verification")
+            .setDescription("Press the button to begin verification. You will get a short code to enter (e.g., L3q9xd). If the code matches, you will get the verified role.")
+            .setThumbnail("https://i.https://emoji.discadia.com/emojis/3ba1d4c6-1532-494f-be0e-028e0cc78e84.png.com/1XQZ1ZB.png")
+            .setColor("#00ff66");
+
+          const row = new ActionRowBuilder().addComponents(
+            .setColor("#00ff66");
+
+>>>>>>> 8e2fbb9724361178fca8491f524f31ab049cbd3a
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`verif_start_${i.guild.id}`).setLabel("Verify").setStyle(ButtonStyle.Primary)
           );
