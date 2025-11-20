@@ -182,11 +182,11 @@ client.on("interactionCreate", async i => {
       const cmd = i.commandName;
 
       // /ping
-      if (cmd === "ping") return i.reply(`🏓 Pong! ${client.ws.ping}ms`);
+      if (cmd === "ping") return await i.reply(`🏓 Pong! ${client.ws.ping}ms`);
 
       // /help
       if (cmd === "help") {
-        return i.reply({
+        return await i.reply({
           embeds: [
             new EmbedBuilder()
               .setTitle("📖 Commands")
@@ -197,13 +197,13 @@ client.on("interactionCreate", async i => {
               )
               .setColor("#00bfff")
           ],
-          ephemeral: true
+          flags: 64
         });
       }
 
       // /serverinfo
       if (cmd === "serverinfo") {
-        return i.reply({
+        return await i.reply({
           embeds: [
             new EmbedBuilder()
               .setTitle("📊 Server Info")
@@ -225,9 +225,9 @@ client.on("interactionCreate", async i => {
         try {
           const member = await i.guild.members.fetch(user.id);
           await member.kick(reason);
-          return i.reply(`✅ Kicked **${user.tag}**`);
+          return await i.reply(`✅ Kicked **${user.tag}**`);
         } catch {
-          return i.reply({ content: `❌ Unable to kick ${user.tag}`, ephemeral: true });
+          return await i.reply({ content: `❌ Unable to kick ${user.tag}`, flags: 64 });
         }
       }
 
@@ -238,9 +238,9 @@ client.on("interactionCreate", async i => {
 
         try {
           await i.guild.members.ban(user.id, { reason });
-          return i.reply(`✅ Banned **${user.tag}**`);
+          return await i.reply(`✅ Banned **${user.tag}**`);
         } catch {
-          return i.reply({ content: `❌ Unable to ban ${user.tag}`, ephemeral: true });
+          return await i.reply({ content: `❌ Unable to ban ${user.tag}`, flags: 64 });
         }
       }
 
@@ -253,9 +253,9 @@ client.on("interactionCreate", async i => {
         try {
           const m = await i.guild.members.fetch(user.id);
           await m.timeout(duration * 60000, reason);
-          return i.reply(`⏳ Timed out **${user.tag}** for ${duration} minutes.`);
+          return await i.reply(`⏳ Timed out **${user.tag}** for ${duration} minutes.`);
         } catch {
-          return i.reply({ content: `❌ Failed to timeout ${user.tag}`, ephemeral: true });
+          return await i.reply({ content: `❌ Failed to timeout ${user.tag}`, flags: 64 });
         }
       }
 
@@ -267,7 +267,7 @@ client.on("interactionCreate", async i => {
         if (!warnings.has(user.id)) warnings.set(user.id, []);
         warnings.get(user.id).push(reason);
 
-        return i.reply(`⚠️ Warned **${user.tag}**: ${reason}`);
+        return await i.reply(`⚠️ Warned **${user.tag}**: ${reason}`);
       }
 
       // /warnings
@@ -275,9 +275,9 @@ client.on("interactionCreate", async i => {
         const user = i.options.getUser("user");
         const list = warnings.get(user.id) || [];
 
-        if (list.length === 0) return i.reply(`${user.tag} has no warnings.`);
+        if (list.length === 0) return await i.reply(`${user.tag} has no warnings.`);
 
-        return i.reply(`⚠️ Warnings for **${user.tag}**:\n- ${list.join("\n- ")}`);
+        return await i.reply(`⚠️ Warnings for **${user.tag}**:\n- ${list.join("\n- ")}`);
       }
 
       // /clear
@@ -285,9 +285,9 @@ client.on("interactionCreate", async i => {
         const amount = i.options.getInteger("amount");
         try {
           await i.channel.bulkDelete(amount, true);
-          return i.reply({ content: `🧹 Deleted ${amount} messages`, ephemeral: true });
+          return await i.reply({ content: `🧹 Deleted ${amount} messages`, flags: 64 });
         } catch {
-          return i.reply({ content: "❌ Cannot delete messages", ephemeral: true });
+          return await i.reply({ content: "❌ Cannot delete messages", flags: 64 });
         }
       }
 
@@ -301,9 +301,9 @@ client.on("interactionCreate", async i => {
             SendMessages: !locked
           });
 
-          return i.reply(`🔒 Channel **${locked ? "locked" : "unlocked"}**.`);
+          return await i.reply(`🔒 Channel **${locked ? "locked" : "unlocked"}**.`);
         } catch {
-          return i.reply({ content: "❌ Failed to modify permissions", ephemeral: true });
+          return await i.reply({ content: "❌ Failed to modify permissions", flags: 64 });
         }
       }
 
@@ -314,9 +314,9 @@ client.on("interactionCreate", async i => {
 
         try {
           await target.send({ content: msg });
-          return i.reply({ content: "✅ Sent!", ephemeral: true });
+          return await i.reply({ content: "✅ Sent!", flags: 64 });
         } catch {
-          return i.reply({ content: "❌ Failed to send message", ephemeral: true });
+          return await i.reply({ content: "❌ Failed to send message", flags: 64 });
         }
       }
 
@@ -340,18 +340,18 @@ client.on("interactionCreate", async i => {
 
         try {
           await target.send({ embeds: [embed] });
-          return i.reply({ content: "✅ Embed sent!", ephemeral: true });
+          return await i.reply({ content: "✅ Embed sent!", flags: 64 });
         } catch {
-          return i.reply({ content: "❌ Failed to send embed", ephemeral: true });
+          return await i.reply({ content: "❌ Failed to send embed", flags: 64 });
         }
       }
 
       // /ticket setup
       if (cmd === "ticket") {
         if (i.options.getSubcommand() === "setup") {
-          return i.reply({
+          return await i.reply({
             content: "🎫 Ticket panel setup coming soon!",
-            ephemeral: true
+            flags: 64
           });
         }
       }
@@ -380,7 +380,7 @@ client.on("interactionCreate", async i => {
           );
   
           await channel.send({ embeds: [embed], components: [row] });
-          return i.reply({ content: "✅ Verification panel posted.", ephemeral: true });
+          return await i.reply({ content: "✅ Verification panel posted.", flags: 64 });
         }
       }
 
@@ -389,10 +389,10 @@ client.on("interactionCreate", async i => {
         if (i.options.getSubcommand() === "setup") {
           const role = i.options.getRole("role");
           joinSettings.set(i.guild.id, { roleId: role.id, enabled: true });
-          return i.reply({ content: `✅ Auto-assign enabled. Users who join will receive the **${role.name}** role.`, ephemeral: true });
+          return await i.reply({ content: `✅ Auto-assign enabled. Users who join will receive the **${role.name}** role.`, flags: 64 });
         } else { // off
           joinSettings.delete(i.guild.id);
-          return i.reply({ content: "✅ Auto-assign disabled for this server.", ephemeral: true });
+          return await i.reply({ content: "✅ Auto-assign disabled for this server.", flags: 64 });
         }
       }
 
@@ -401,10 +401,10 @@ client.on("interactionCreate", async i => {
         if (i.options.getSubcommand() === "set") {
           const channel = i.options.getChannel("channel");
           chatSettings.set(i.guild.id, { channelId: channel.id, enabled: true });
-          return i.reply({ content: `🤖 Chatbot enabled in ${channel}. Users can mention me there and reply to my message to continue the conversation.`, ephemeral: true });
+          return await i.reply({ content: `🤖 Chatbot enabled in ${channel}. Users can mention me there and reply to my message to continue the conversation.`, flags: 64 });
         } else { // off
           chatSettings.delete(i.guild.id);
-          return i.reply({ content: "🤖 Chatbot disabled for this server.", ephemeral: true });
+          return await i.reply({ content: "🤖 Chatbot disabled for this server.", flags: 64 });
         }
       }
 
@@ -419,7 +419,7 @@ client.on("interactionCreate", async i => {
         const settings = verifSettings.get(guildId);
 
         if (!settings) {
-          return i.reply({ content: "❌ This verification panel is not properly configured.", ephemeral: true });
+          return await i.reply({ content: "❌ This verification panel is not properly configured.", flags: 64 });
         }
 
         // generate code and store
@@ -437,7 +437,7 @@ client.on("interactionCreate", async i => {
           new ButtonBuilder().setCustomId(`verif_modal_open_${i.user.id}`).setLabel("Enter Code").setStyle(ButtonStyle.Success)
         );
 
-        return i.reply({ embeds: [embed], components: [openModalButton], ephemeral: true });
+        return await i.reply({ embeds: [embed], components: [openModalButton], flags: 64 });
       }
 
       // open modal for a specific user - ensures only the user who started can open
@@ -446,7 +446,7 @@ client.on("interactionCreate", async i => {
         const userId = parts.slice(3).join("_");
 
         if (i.user.id !== userId) {
-          return i.reply({ content: "❌ You cannot open this modal for another user.", ephemeral: true });
+          return await i.reply({ content: "❌ You cannot open this modal for another user.", flags: 64 });
         }
 
         // create modal
@@ -464,7 +464,7 @@ client.on("interactionCreate", async i => {
         const row = new ActionRowBuilder().addComponents(input);
         modal.addComponents(row);
 
-        return i.showModal(modal);
+        return await i.showModal(modal);
       }
     }
 
@@ -475,28 +475,28 @@ client.on("interactionCreate", async i => {
         const userId = parts.slice(2).join("_");
 
         if (i.user.id !== userId) {
-          return i.reply({ content: "❌ Unauthorized modal submission.", ephemeral: true });
+          return await i.reply({ content: "❌ Unauthorized modal submission.", flags: 64 });
         }
 
         const entry = verifCodes.get(i.user.id);
         if (!entry) {
-          return i.reply({ content: "❌ No verification started or code expired.", ephemeral: true });
+          return await i.reply({ content: "❌ No verification started or code expired.", flags: 64 });
         }
 
         if (Date.now() > entry.expiresAt) {
           verifCodes.delete(i.user.id);
-          return i.reply({ content: "❌ Code expired. Please try again.", ephemeral: true });
+          return await i.reply({ content: "❌ Code expired. Please try again.", flags: 64 });
         }
 
         const value = i.fields.getTextInputValue("code_input").trim();
         if (value !== entry.code) {
-          return i.reply({ content: "❌ Incorrect code. Please try again.", ephemeral: true });
+          return await i.reply({ content: "❌ Incorrect code. Please try again.", flags: 64 });
         }
 
         // successful verification
         const settings = verifSettings.get(entry.guildId);
         if (!settings) {
-          return i.reply({ content: "❌ Guild verification settings no longer exist.", ephemeral: true });
+          return await i.reply({ content: "❌ Guild verification settings no longer exist.", flags: 64 });
         }
 
         try {
@@ -509,19 +509,23 @@ client.on("interactionCreate", async i => {
           }
           verifCodes.delete(i.user.id);
 
-          return i.reply({ content: "✅ Verification successful! Roles updated.", ephemeral: true });
+          return await i.reply({ content: "✅ Verification successful! Roles updated.", flags: 64 });
         } catch (err) {
           console.error("Verification role update error:", err);
-          return i.reply({ content: "❌ Failed to update roles. Check bot permissions.", ephemeral: true });
+          return await i.reply({ content: "❌ Failed to update roles. Check bot permissions.", flags: 64 });
         }
       }
     }
   } catch (e) {
     console.error(e);
-    if (i.replied || i.deferred) {
-      return i.followUp({ content: "❌ Error occurred.", ephemeral: true });
+    try {
+      if (i.replied || i.deferred) {
+        return await i.followUp({ content: "❌ Error occurred.", flags: 64 });
+      }
+      return await i.reply({ content: "❌ Error occurred.", flags: 64 });
+    } catch (err) {
+      console.error("Failed to notify user about error:", err);
     }
-    return i.reply({ content: "❌ Error occurred.", ephemeral: true });
   }
 });
 
