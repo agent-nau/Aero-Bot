@@ -541,45 +541,30 @@ client.on("guildMemberAdd", async member => {
 
 // Simple helper: generate reply via OpenAI if API key available, otherwise fallback
 async function generateReply(userMessage, history = []) {
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (!openaiKey) {
-    // fallback: short echo + hint
-    return `You said: ${userMessage}\n(Enable OPENAI_API_KEY to get smarter replies.)`;
-  }
-
-  try {
-    const messages = [
-      { role: "system", content: "You are Aero, a concise helpful chatbot. Keep replies short." },
-      ...history,
-      { role: "user", content: userMessage },
-    ];
-
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-3.5-turbo",
-        messages,
-        max_tokens: 300,
-        temperature: 0.7,
-      })
-    });
-
-    if (!res.ok) {
-      console.error("OpenAI error status:", res.status, await res.text());
-      return `Sorry, I couldn't generate a reply.`;
+  // Use Puter.js only. No OpenAI/ChatGPT fallback.
+  if (process.env.USE_PUTER === "1") {
+    try {
+      const puter = await import("puter");
+      // Common possible Puter.js shapes — adapt if your Puter API differs.
+      if (puter?.chat) {
+        const r = await puter.chat({ prompt: userMessage, history, maxTokens: 300, temperature: 0.5 });
+        const text = typeof r === "string" ? r : (r?.text || r?.output || "");
+        if (text) return text.trim();
+      } else if (puter?.generate) {
+        const prompt = `${history.map(h => `${h.role}: ${h.content}`).join("\n")}\nUser: ${userMessage}`;
+        const r = await puter.generate({ prompt, maxTokens: 300, temperature: 0.5 });
+        const text = r?.text || r?.output || (Array.isArray(r) ? r[0]?.text : "");
+        if (text) return text.trim();
+      } else {
+        console.warn("Puter.js loaded but API shape is unknown. Adapt generateReply to the Puter API.");
+      }
+    } catch (err) {
+      console.error("Puter.js load/use error:", err);
     }
-
-    const data = await res.json();
-    const text = data.choices?.[0]?.message?.content?.trim();
-    return text || `Sorry, I couldn't generate a reply.`;
-  } catch (err) {
-    console.error("OpenAI fetch error:", err);
-    return `Sorry, an error occurred while generating a reply.`;
   }
+
+  // If Puter not enabled/available, fallback to a short local echo/hint.
+  return `You said: ${userMessage}\n(Install Puter.js and set USE_PUTER=1 to enable the local AI.)`;
 }
 
 // Message handler for mentions and reply-to-bot continuation
