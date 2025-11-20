@@ -45,9 +45,7 @@ const verifCodes = new Map(); // userId -> { code, expiresAt, guildId }
 // auto-assign on join settings
 const joinSettings = new Map(); // guildId -> { roleId, enabled }
 
-// chatbot settings
-const chatSettings = new Map(); // guildId -> { channelId, enabled }
-const convos = new Map(); // messageId -> { userId, channelId, history }
+
 
 // simple code generator (no confusing characters)
 function generateCode(len = 6) {
@@ -133,12 +131,6 @@ const commands = [
       .addRoleOption(o => o.setName("role").setDescription("Role to assign on join").setRequired(true)))
     .addSubcommand(sub => sub.setName("off").setDescription("Disable auto-assign"))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
-
-  new SlashCommandBuilder().setName("chatbot").setDescription("Chatbot system")
-    .addSubcommand(sub => sub.setName("set").setDescription("Enable chatbot and set channel")
-      .addChannelOption(o => o.setName("channel").setDescription("Channel for chatbot").setRequired(true).addChannelTypes(ChannelType.GuildText)))
-    .addSubcommand(sub => sub.setName("off").setDescription("Disable chatbot"))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 ];
 
 // ---------- Command registration ----------
@@ -159,7 +151,7 @@ async function registerCommands() {
 }
 
 // ---------- Ready ----------
-client.once("clientReady", async () => {
+client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   await registerCommands();
 
@@ -197,8 +189,7 @@ client.on("interactionCreate", async i => {
                 { name: "Utility", value: "`ping`, `help`, `serverinfo`, `say`, `embed`" },
                 { name: "Tickets", value: "`ticket setup`" },
                 { name: "Verification", value: "`verify setup`" },
-                { name: "Auto-Assign", value: "`autojoin setup`, `autojoin off`" },
-                { name: "Chatbot", value: "`chatbot set`, `chatbot off`" }
+                { name: "Auto-Assign", value: "`autojoin setup`, `autojoin off`" }
               )
               .setColor("#00bfff")
           ],
@@ -401,18 +392,6 @@ client.on("interactionCreate", async i => {
         }
       }
 
-      // /chatbot
-      if (cmd === "chatbot") {
-        if (i.options.getSubcommand() === "set") {
-          const channel = i.options.getChannel("channel");
-          chatSettings.set(i.guild.id, { channelId: channel.id, enabled: true });
-          return await i.reply({ content: `✅ Chatbot enabled in **${channel.name}**. Mention the bot or reply to its messages to chat.`, flags: 64 });
-        } else { // off
-          chatSettings.delete(i.guild.id);
-          return await i.reply({ content: "✅ Chatbot disabled for this server.", flags: 64 });
-        }
-      }
-
 
 
     }
@@ -552,94 +531,7 @@ client.on("guildMemberAdd", async member => {
 
 
 
-// Message handler for mentions and reply-to-bot continuation
-client.on("messageCreate", async message => {
-  try {
-    if (message.author.bot) return;
-    if (!message.guild) return;
 
-    const settings = chatSettings.get(message.guild.id);
-    if (!settings || !settings.enabled) return; // chatbot disabled for guild
-
-    // only operate in the configured channel
-    if (settings.channelId && message.channel.id !== settings.channelId) {
-      // allow direct mention in any channel? the user asked "add @aero if mention the bot it will like a chatbot"
-      // but requirement also requested command to set channel that chatbot only works; we enforce channel.
-      return;
-    }
-
-    // If message mentions the bot -> start a conversation thread: bot replies and instructs to reply to continue
-    if (message.mentions.has(client.user)) {
-      // prepare initial context
-      const prompt = message.content.replace(/<@!?(\d+)>/g, "").trim() || "Hello!";
-      const initialHistory = [{ role: "user", content: prompt }];
-
-      // send initial reply
-      const initialText = await generateReply(prompt, initialHistory);
-      const reply = await message.reply({ content: initialText });
-
-      // store conversation keyed by bot reply id so user can reply to it to continue
-      convos.set(reply.id, { userId: message.author.id, channelId: message.channel.id, history: initialHistory.concat([{ role: "assistant", content: initialText }]) });
-
-      return;
-    }
-
-    // If the user replied to a bot message that started a convo -> continue
-    const ref = message.reference?.messageId;
-    if (ref && convos.has(ref)) {
-      const convo = convos.get(ref);
-      // ensure same user and same channel
-      if (convo.userId !== message.author.id || convo.channelId !== message.channel.id) return;
-
-      // append user message to history and generate reply
-      convo.history.push({ role: "user", content: message.content });
-      // indicate typing
-      try { await message.channel.sendTyping(); } catch {}
-      const replyText = await generateReply(message.content, convo.history);
-      const sent = await message.reply({ content: replyText });
-
-      // append assistant reply to history and update convos key to new bot message so next reply to this bot message continues
-      convo.history.push({ role: "assistant", content: replyText });
-      convos.delete(ref);
-      convos.set(sent.id, convo);
-
-      // optionally limit stored history length to avoid runaway memory
-      if (convo.history.length > 20) convo.history.splice(0, convo.history.length - 20);
-
-      return;
-    }
-  } catch (err) {
-    console.error("Chatbot message handler error:", err);
-  }
-});
-
-// Simple helper: generate reply via OpenAI if API key available, otherwise fallback
-async function generateReply(userMessage, history = []) {
-  // Use Puter.js only. No OpenAI/ChatGPT fallback.
-  if (process.env.USE_PUTER === "1") {
-    try {
-      const puter = await import("puter");
-      // Common possible Puter.js shapes — adapt if your Puter API differs.
-      if (puter?.chat) {
-        const r = await puter.chat({ prompt: userMessage, history, maxTokens: 300, temperature: 0.5 });
-        const text = typeof r === "string" ? r : (r?.text || r?.output || "");
-        if (text) return text.trim();
-      } else if (puter?.generate) {
-        const prompt = `${history.map(h => `${h.role}: ${h.content}`).join("\n")}\nUser: ${userMessage}`;
-        const r = await puter.generate({ prompt, maxTokens: 300, temperature: 0.5 });
-        const text = r?.text || r?.output || (Array.isArray(r) ? r[0]?.text : "");
-        if (text) return text.trim();
-      } else {
-        console.warn("Puter.js loaded but API shape is unknown. Adapt generateReply to the Puter API.");
-      }
-    } catch (err) {
-      console.error("Puter.js load/use error:", err);
-    }
-  }
-
-  // If Puter not enabled/available, fallback to a short local echo/hint.
-  return `You said: ${userMessage}\n(Install Puter.js and set USE_PUTER=1 to enable the local AI.)`;
-}
 
 // ---------- Login ----------
 client.login(process.env.DISCORD_BOT_TOKEN);
