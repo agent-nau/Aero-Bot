@@ -15,7 +15,6 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import fetch from "node-fetch";
 import { startKeepAlive } from "./keep-alive.js";
 
 console.log("🛡️ Starting Security & Ticket Bot...");
@@ -37,9 +36,7 @@ const colorMap = {
   white: "#ffffff", gray: "#808080", cyan: "#00ffff", magenta: "#ff00ff",
 };
 
-// new: chatbot settings & conversation tracking
-const chatSettings = new Map(); // guildId -> { channelId, enabled }
-const convos = new Map(); // botMessageId -> { userId, channelId, history: [{role,content}] }
+
 
 // verification maps (guild settings + per-user codes)
 const verifSettings = new Map(); // guildId -> { channelId, verifiedRoleId, unverifiedRoleId }
@@ -47,6 +44,10 @@ const verifCodes = new Map(); // userId -> { code, expiresAt, guildId }
 
 // auto-assign on join settings
 const joinSettings = new Map(); // guildId -> { roleId, enabled }
+
+// chatbot settings
+const chatSettings = new Map(); // guildId -> { channelId, enabled }
+const convos = new Map(); // messageId -> { userId, channelId, history }
 
 // simple code generator (no confusing characters)
 function generateCode(len = 6) {
@@ -112,12 +113,7 @@ const commands = [
     .addChannelOption(o => o.setName("channel").setDescription("Target channel").addChannelTypes(ChannelType.GuildText))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
-  // new: chatbot control
-  new SlashCommandBuilder().setName("chatbot").setDescription("Configure Aero chatbot")
-    .addSubcommand(sub => sub.setName("set").setDescription("Enable chatbot in a channel")
-      .addChannelOption(o => o.setName("channel").setDescription("Channel to enable").setRequired(true).addChannelTypes(ChannelType.GuildText)))
-    .addSubcommand(sub => sub.setName("off").setDescription("Disable chatbot"))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
 
   new SlashCommandBuilder().setName("ticket").setDescription("Ticket system")
     .addSubcommand(sub => sub.setName("setup").setDescription("Post ticket panel")
@@ -137,6 +133,12 @@ const commands = [
       .addRoleOption(o => o.setName("role").setDescription("Role to assign on join").setRequired(true)))
     .addSubcommand(sub => sub.setName("off").setDescription("Disable auto-assign"))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+
+  new SlashCommandBuilder().setName("chatbot").setDescription("Chatbot system")
+    .addSubcommand(sub => sub.setName("set").setDescription("Enable chatbot and set channel")
+      .addChannelOption(o => o.setName("channel").setDescription("Channel for chatbot").setRequired(true).addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand(sub => sub.setName("off").setDescription("Disable chatbot"))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 ];
 
 // ---------- Command registration ----------
@@ -192,8 +194,11 @@ client.on("interactionCreate", async i => {
               .setTitle("📖 Commands")
               .addFields(
                 { name: "Moderation", value: "`kick`, `ban`, `timeout`, `warn`, `warnings`, `clear`, `lockdown`" },
-                { name: "Utility", value: "`ping`, `help`, `serverinfo`, `say`" },
-                { name: "Tickets", value: "`ticket setup`" }
+                { name: "Utility", value: "`ping`, `help`, `serverinfo`, `say`, `embed`" },
+                { name: "Tickets", value: "`ticket setup`" },
+                { name: "Verification", value: "`verify setup`" },
+                { name: "Auto-Assign", value: "`autojoin setup`, `autojoin off`" },
+                { name: "Chatbot", value: "`chatbot set`, `chatbot off`" }
               )
               .setColor("#00bfff")
           ],
@@ -401,12 +406,14 @@ client.on("interactionCreate", async i => {
         if (i.options.getSubcommand() === "set") {
           const channel = i.options.getChannel("channel");
           chatSettings.set(i.guild.id, { channelId: channel.id, enabled: true });
-          return await i.reply({ content: `🤖 Chatbot enabled in ${channel}. Users can mention me there and reply to my message to continue the conversation.`, flags: 64 });
+          return await i.reply({ content: `✅ Chatbot enabled in **${channel.name}**. Mention the bot or reply to its messages to chat.`, flags: 64 });
         } else { // off
           chatSettings.delete(i.guild.id);
-          return await i.reply({ content: "🤖 Chatbot disabled for this server.", flags: 64 });
+          return await i.reply({ content: "✅ Chatbot disabled for this server.", flags: 64 });
         }
       }
+
+
 
     }
 
@@ -543,33 +550,7 @@ client.on("guildMemberAdd", async member => {
   }
 });
 
-// Simple helper: generate reply via OpenAI if API key available, otherwise fallback
-async function generateReply(userMessage, history = []) {
-  // Use Puter.js only. No OpenAI/ChatGPT fallback.
-  if (process.env.USE_PUTER === "1") {
-    try {
-      const puter = await import("puter");
-      // Common possible Puter.js shapes — adapt if your Puter API differs.
-      if (puter?.chat) {
-        const r = await puter.chat({ prompt: userMessage, history, maxTokens: 300, temperature: 0.5 });
-        const text = typeof r === "string" ? r : (r?.text || r?.output || "");
-        if (text) return text.trim();
-      } else if (puter?.generate) {
-        const prompt = `${history.map(h => `${h.role}: ${h.content}`).join("\n")}\nUser: ${userMessage}`;
-        const r = await puter.generate({ prompt, maxTokens: 300, temperature: 0.5 });
-        const text = r?.text || r?.output || (Array.isArray(r) ? r[0]?.text : "");
-        if (text) return text.trim();
-      } else {
-        console.warn("Puter.js loaded but API shape is unknown. Adapt generateReply to the Puter API.");
-      }
-    } catch (err) {
-      console.error("Puter.js load/use error:", err);
-    }
-  }
 
-  // If Puter not enabled/available, fallback to a short local echo/hint.
-  return `You said: ${userMessage}\n(Install Puter.js and set USE_PUTER=1 to enable the local AI.)`;
-}
 
 // Message handler for mentions and reply-to-bot continuation
 client.on("messageCreate", async message => {
@@ -631,6 +612,34 @@ client.on("messageCreate", async message => {
     console.error("Chatbot message handler error:", err);
   }
 });
+
+// Simple helper: generate reply via OpenAI if API key available, otherwise fallback
+async function generateReply(userMessage, history = []) {
+  // Use Puter.js only. No OpenAI/ChatGPT fallback.
+  if (process.env.USE_PUTER === "1") {
+    try {
+      const puter = await import("puter");
+      // Common possible Puter.js shapes — adapt if your Puter API differs.
+      if (puter?.chat) {
+        const r = await puter.chat({ prompt: userMessage, history, maxTokens: 300, temperature: 0.5 });
+        const text = typeof r === "string" ? r : (r?.text || r?.output || "");
+        if (text) return text.trim();
+      } else if (puter?.generate) {
+        const prompt = `${history.map(h => `${h.role}: ${h.content}`).join("\n")}\nUser: ${userMessage}`;
+        const r = await puter.generate({ prompt, maxTokens: 300, temperature: 0.5 });
+        const text = r?.text || r?.output || (Array.isArray(r) ? r[0]?.text : "");
+        if (text) return text.trim();
+      } else {
+        console.warn("Puter.js loaded but API shape is unknown. Adapt generateReply to the Puter API.");
+      }
+    } catch (err) {
+      console.error("Puter.js load/use error:", err);
+    }
+  }
+
+  // If Puter not enabled/available, fallback to a short local echo/hint.
+  return `You said: ${userMessage}\n(Install Puter.js and set USE_PUTER=1 to enable the local AI.)`;
+}
 
 // ---------- Login ----------
 client.login(process.env.DISCORD_BOT_TOKEN);
