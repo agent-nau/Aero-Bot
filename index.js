@@ -341,15 +341,15 @@ client.on("interactionCreate", async i => {
             unverifiedRoleId: unverifiedRole.id,
           });
 
-          const embed = new EmbedBuilder()
-            .setTitle("🔒 Verification")
-            .setDescription("Press the button to begin verification. You will get a short code to enter (e.g., L3q9xd). If the code matches, you will get the verified role and the unverified role will be removed.")
-            .setColor("#00ff66");
-
+          const embed = new EmbedBuilder();
+          embed.setTitle("🔒 Verification");
+          embed.setDescription("Press the button to begin verification. You will get a short code to enter (e.g., L3q9xd). If the code matches, you will get the verified role and the unverified role will be removed.");
+          embed.setColor("#00ff66");
+  
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`verif_start_${i.guild.id}`).setLabel("Verify").setStyle(ButtonStyle.Primary)
           );
-
+  
           await channel.send({ embeds: [embed], components: [row] });
           return i.reply({ content: "✅ Verification panel posted.", ephemeral: true });
         }
